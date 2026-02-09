@@ -27,15 +27,23 @@ class DocumentProcessor:
             use_textline_orientation=False,
             lang="ru"
         )
+        print("OCR загрузилась")
 
         # Загружаем LLM один раз
+        print("Загрузка ллм")
         MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
         self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        print("Токенизатор загружен")
         self.model = AutoModelForCausalLM.from_pretrained(
             MODEL_NAME,
             device_map="auto",
-            torch_dtype=torch.float16
+            dtype=torch.float16
         )
+        # self.model = AutoModelForCausalLM.from_pretrained(
+        #     MODEL_NAME,
+        #     device_map={"": "cpu"},
+        #     dtype=torch.bfloat16
+        # )
 
         self._initialized = True
         print("Модели загружены!")

@@ -13,7 +13,6 @@ if uploaded_file is not None:
 
     if st.button("Извлечь ФИО"):
         with st.spinner("Обработка..."):
-            # Перемотка в начало, т.к. Image.open() уже прочитал поток
             uploaded_file.seek(0)
             response = requests.post(
                 "http://backend:8000/process-document",
