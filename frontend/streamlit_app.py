@@ -9,7 +9,7 @@ uploaded_file = st.file_uploader("Загрузите фото документа
 if uploaded_file is not None:
     # Показываем загруженное изображение
     image = Image.open(uploaded_file)
-    st.image(image, caption="Загруженный документ", use_container_width=True)
+    st.image(image, caption="Загруженный документ", use_column_width=True)
 
     if st.button("Извлечь ФИО"):
         with st.spinner("Обработка..."):
