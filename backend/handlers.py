@@ -1,5 +1,5 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException
-from task import extract_fio
+from task_old import extract_fio
 import shutil
 import tempfile
 from pathlib import Path
