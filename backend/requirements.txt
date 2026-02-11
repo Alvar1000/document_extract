@@ -7,3 +7,5 @@ torch>=2.0.0,<3
 accelerate>=0.25.0
 transformers>=4.40.0
 pillow>=10.0.0
+langchain>=0.2.0
+langchain-openai>=0.1.0

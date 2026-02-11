@@ -1,8 +1,8 @@
 import paddle
 from paddleocr import PaddleOCR
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+import re
 
 
 class DocumentProcessor:
@@ -29,10 +29,23 @@ class DocumentProcessor:
         )
         print("OCR загрузилась")
 
-        # Настраиваем LLM через API
-        print("Настройка LLM API...")
+        # Загружаем LLM один раз
+        print("Загрузка ллм")
+        MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
+        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        print("Токенизатор загружен")
+        self.model = AutoModelForCausalLM.from_pretrained(
+            MODEL_NAME,
+            device_map="auto",
+            dtype=torch.float16
+        )
 
-        self.system_prompt = (
+        self._initialized = True
+        print("Модели загружены!")
+
+    def extract_fio_from_text(self, text: str) -> str:
+        """Извлекает ФИО из грязного OCR-текста."""
+        system_prompt = (
             "Ты — модуль нормализации данных СТС. Твоя цель — извлечь ФИО собственника на русском языке.\n\n"
             "ИНСТРУКЦИЯ:"
             "1. Ищи текст после ключевых слов: '(владелец)'."
@@ -50,29 +63,34 @@ class DocumentProcessor:
             "Выход: КУЗНЕЦ МАРИЯ ИВАНОВНА"
         )
 
-        chat_prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", self.system_prompt),
-                ("user", "{problem}"),
-            ]
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Текст для анализа:\n{text}"}
+        ]
+
+        text_input = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
         )
 
-        llm = ChatOpenAI(
-            model='openai/gpt-oss-120b',
-            api_key='ak_-eWEKuKSLhwGuZkEYgCj1k-WR5_KURQmoBrb3AbKW-8',
-            base_url="https://api.polza.ai/api/v1",
-            timeout=60,
-            temperature=0.0,
-        )
+        inputs = self.tokenizer([text_input], return_tensors="pt").to(self.model.device)
 
-        self.answer_chain = chat_prompt | llm | StrOutputParser()
+        with torch.no_grad():
+            output_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=35,
+                do_sample=False,
+                pad_token_id=self.tokenizer.eos_token_id,
+                repetition_penalty=1.15
+            )
 
-        self._initialized = True
-        print("Модели загружены!")
+        generated_ids = [
+            output_ids[len(input_ids):]
+            for input_ids, output_ids in zip(inputs.input_ids, output_ids)
+        ]
 
-    def extract_fio_from_text(self, text: str) -> str:
-        """Извлекает ФИО из грязного OCR-текста через API."""
-        result = self.answer_chain.invoke({"problem": f"Текст для анализа:\n{text}"})
+        result = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
 
         clean_result = result.replace("Выход:", "").replace("Ответ:", "").strip()
 
@@ -88,6 +106,7 @@ class DocumentProcessor:
 
         full_text = " ".join(texts)
 
+        # Обрезаем текст до 140 символов
         full_text = full_text[:140]
 
         fio = self.extract_fio_from_text(full_text)
